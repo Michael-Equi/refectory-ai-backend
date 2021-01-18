@@ -2,10 +2,10 @@ import cv2
 import numpy as np
 
 
-def warp_image(points, img, tag_height=100):
+def warp_image(points, img, tag_size=100):
     pts1 = np.float32([points[3], points[2], points[1], points[0]])  # [top left, top right, bottom left, bottom right]
     # [top left, top right, bottom left, bottom right]
-    pts2 = np.float32([[0, tag_height], [0, 0], [tag_height, 0], [tag_height, tag_height]])
+    pts2 = np.float32([[0, tag_size], [0, 0], [tag_size, 0], [tag_size, tag_size]])
     h = cv2.getPerspectiveTransform(pts1, pts2)
 
     """
