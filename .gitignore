@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+.idea
+.DS_store
+
+# ignore credentials file
+refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json
