@@ -12,12 +12,12 @@ const App = () => {
 
   useEffect(() => {
     if(image === null){
-      fetch('/image').then(res => {
-        if(!res.ok){
-          throw Error("Error fetching image");
-        }
-        setImage(res);
-      });
+      fetch('/image')
+        .then(res => res.blob())
+        .then(blob => {
+          const objectUrl = URL.createObjectURL(blob)
+          setImage(objectUrl);
+        });
     }
   })
 
@@ -44,9 +44,9 @@ const App = () => {
       }
       fetch('/addAnnotation', request)
         .then(res => res.blob())
-        .then(res => {
-          const objectUrl = URL.createObjectURL(res)
-        setImage({url: objectUrl});
+        .then(blob => {
+          const objectUrl = URL.createObjectURL(blob)
+        setImage(objectUrl);
       });
     }
   }
@@ -61,7 +61,7 @@ const App = () => {
     <div className="App">
       {
         image !== null ?
-          <img src={image.url} alt={''} onClick={imageClicked} style={{margin: 0, padding: 0}}/>
+          <img src={image} alt={''} onClick={imageClicked} style={{margin: 0, padding: 0}}/>
           : null
       }
       <button>Undo</button>
