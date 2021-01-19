@@ -54,4 +54,4 @@ def warp_image(points, img, tag_size=100):
                       [0, 1, -min_y],
                       [0, 0, 1]])
     dst = cv2.warpPerspective(img, np.dot(h_t, h), (int(-min_x + max_x), int(-min_y + max_y)))
-    return dst
+    return dst, np.dot(h_t, h), int(-min_x + max_x), int(-min_y + max_y)
