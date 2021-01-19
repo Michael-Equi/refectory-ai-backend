@@ -61,6 +61,7 @@ const App = () => {
       }
       <button>Undo</button>
       <button>New Image</button>
+      <button>Push to Database</button>
       <button onClick={() => setClicks([])}>Clear clicks</button>
       {
         isRound ?
