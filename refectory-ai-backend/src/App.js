@@ -42,7 +42,12 @@ const App = () => {
           points: clicks
         })
       }
-      fetch('/addAnnotation', request).then(r => console.log(r));
+      fetch('/addAnnotation', request)
+        .then(res => res.blob())
+        .then(res => {
+          const objectUrl = URL.createObjectURL(res)
+        setImage({url: objectUrl});
+      });
     }
   }
 
