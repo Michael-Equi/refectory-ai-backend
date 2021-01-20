@@ -1,11 +1,29 @@
 from flask import Flask, send_file, request, jsonify
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 import cv2
+import os
 import math
 
+import models
 
 app = Flask(__name__)
 
 cap = cv2.VideoCapture(0)
+
+config = {
+    "apiKey": "AIzaSyC2qvy80zegkDmLkJM18CSiSj_cz21PWZk",
+    "authDomain": "refectory-ai.firebaseapp.com",
+    "projectId": "refectory-ai",
+    "storageBucket": "refectory-ai.appspot.com",
+    "databaseURL": "https://databaseName.firebaseio.com",
+    "messagingSenderId": "392671167282",
+    "appId": "1:392671167282:web:2b6c38f02676e86de0cd2b",
+    "measurementId": "G-S557B9S0FY"
+}
+cred = credentials.Certificate('./refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json')
+firebase_admin.initialize_app(cred, config)
+db = firestore.client()
 
 
 def get_frame():
@@ -16,8 +34,32 @@ def get_frame():
         Exception("Problem getting frame from camera")
 
 
-def generate_crops_from_annotations():
-    pass
+def upload_dish_image(index, image):
+    # image should be 100x100
+    file = f'image{index}.png'
+    cv2.imwrite(os.path.join('/tmp', file), image)
+    bucket = storage.bucket()
+    blob = bucket.blob(file)
+    if blob.exists():
+        blob.delete()
+    blob.upload_from_filename(os.path.join('/tmp', file))
+    blob.make_public()
+    return blob.public_url
+    # return 'https://storage.googleapis.com/refectory-ai.appspot.com/image0.png'
+
+
+def generate_dishes_from_annotations(annotations):
+    dishes = []
+    image = cv2.imread(tmp_img_location)
+    for i, annotation in enumerate(annotations):
+        pts = annotation['points']
+        crop = image[pts[0][1]:pts[1][1], pts[0][0]:pts[1][0]]
+        output = cv2.resize(crop, (100, 100))
+        url = upload_dish_image(i, output)
+        dish = models.Dish(contents=annotation['content'], image=url, name=annotation['name'],
+                           round=annotation['round'], section=2)
+        dishes.append(dish)
+    return dishes
 
 
 def draw_annotations(annotations, image):
@@ -85,8 +127,19 @@ def undo_annotation():
     return send_file(tmp_annotated_img_location, mimetype='image/png')
 
 
+def clear_dishes(doc_ref):
+    current_dishes = doc_ref.get().to_dict()['dishes']
+    if len(current_dishes) > 0:
+        doc_ref.update({u'dishes': firestore.ArrayRemove(current_dishes)})
+
+
 @app.route('/api/push', methods=['POST'])
 def push():
-    return jsonify({"success": False})
-    # add in the annotation
-    # return send_file(tmp_annotated_img_location, mimetype='image/png')
+    try:
+        doc_ref = db.collection(u'streams').document(u'mock')
+        clear_dishes(doc_ref)
+        for dish in generate_dishes_from_annotations(annotations):
+            doc_ref.update({u'dishes': firestore.ArrayUnion([dish.dict()])})
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, 'exception': e})
