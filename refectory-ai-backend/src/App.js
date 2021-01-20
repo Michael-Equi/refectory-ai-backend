@@ -9,20 +9,25 @@ const App = () => {
 
   const nameRef = useRef();
   const contentRef = useRef();
+  const imgRef = useRef();
+
+  const update_image = async (res) => {
+    if (!res.ok) {
+      throw Error('Error getting image');
+    }
+    const data = await res.blob();
+    const objectUrl = URL.createObjectURL(data)
+    setImage(objectUrl);
+  }
 
   useEffect(() => {
     if(image === null){
-      fetch('/image')
-        .then(res => res.blob())
-        .then(blob => {
-          const objectUrl = URL.createObjectURL(blob)
-          setImage(objectUrl);
-        });
+      fetch('/api/image', {cache: "no-store"}).then(update_image);
     }
   })
 
   const imageClicked = (event) => {
-    setClicks([...clicks, [event.clientX, event.clientY]])
+    setClicks([...clicks, [event.pageX - imgRef.current.offsetLeft, event.pageY - imgRef.current.offsetTop]])
   }
 
   const sendForm = (e) => {
@@ -33,40 +38,35 @@ const App = () => {
       const request = {
         method:"POST",
         cache: "no-cache",
-        headers:{
+        headers: {
           "content_type":"application/json",
         },
         body: JSON.stringify({
           name: nameRef.current.value,
           content: contentRef.current.value,
-          points: clicks
+          points: clicks,
+          round: isRound
         })
       }
-      fetch('/addAnnotation', request)
-        .then(res => res.blob())
-        .then(blob => {
-          const objectUrl = URL.createObjectURL(blob)
-        setImage(objectUrl);
-      });
+      fetch('/api/annotation', request).then(update_image);
+      setClicks([])
     }
   }
-
-  /// Contents
-  /// image <-
-  /// name <- handle in form
-  /// round
-  /// section
 
   return (
     <div className="App">
       {
         image !== null ?
-          <img src={image} alt={''} onClick={imageClicked} style={{margin: 0, padding: 0}}/>
+          <img ref={imgRef} src={image} alt={''} onClick={imageClicked} style={{margin: 0, padding: 0}}/>
           : null
       }
-      <button>Undo</button>
-      <button>New Image</button>
-      <button>Push to Database</button>
+      <button onClick={() => fetch('/api/annotation/undo', {method: 'POST', cache: "no-store"}).then(update_image)}>Undo</button>
+      <button onClick={() => fetch('/api/annotation/clear', {method: 'POST', cache: "no-store"}).then(update_image)}>Clear</button>
+      <button onClick={() => fetch('/api/image', {cache: "no-store"}).then(update_image)}>New Image</button>
+      <button onClick={() => fetch('/api/push', {method: 'POST'}).then((res) => res.json())
+        .then((data => data.success ? alert('Success') : alert('Failure')))}>
+        Push to Database
+      </button>
       <button onClick={() => setClicks([])}>Clear clicks</button>
       {
         isRound ?

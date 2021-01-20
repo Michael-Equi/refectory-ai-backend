@@ -1,27 +1,92 @@
-from flask import Flask, send_file, request
+from flask import Flask, send_file, request, jsonify
 import cv2
-import time
+import math
+
 
 app = Flask(__name__)
 
-# add /api/ to all endpoints
+cap = cv2.VideoCapture(0)
 
 
-@app.route('/time')
-def get_current_time():
-    return {'time': time.time()}
+def get_frame():
+    ret, frame = cap.read()
+    if ret:
+        return frame
+    else:
+        Exception("Problem getting frame from camera")
 
 
-@app.route('/image')
+def generate_crops_from_annotations():
+    pass
+
+
+def draw_annotations(annotations, image):
+    section = 1
+    color = (0, 0, 255)
+    if section == 1:
+        color = (0, 255, 0)
+    elif section == 2:
+        color = (255, 0, 0)
+
+    for annotation in annotations:
+        if annotation['round']:
+            center = ((annotation['points'][0][0] + annotation['points'][1][0]) / 2,
+                      (annotation['points'][0][1] + annotation['points'][1][1]) / 2)
+            radius = int(math.sqrt((center[0] - annotation['points'][1][0]) ** 2 +
+                                   (center[1] - annotation['points'][1][1]) ** 2))
+            image = cv2.circle(image, (int(center[0]), int(center[1])), radius, color, 2)
+        else:
+            image = cv2.rectangle(image, tuple(annotation['points'][0]), tuple(annotation['points'][1]), color, 2)
+
+    return image
+
+
+def update_annotated_image_file():
+    unannotated_image = cv2.imread(tmp_img_location)
+    annotated_image = draw_annotations(annotations, unannotated_image)
+    cv2.imwrite(tmp_annotated_img_location, annotated_image)
+
+
+image = None
+annotations = []
+tmp_img_location = '/tmp/refectory_image.png'
+tmp_annotated_img_location = '/tmp/annotated_refectory_image.png'
+
+
+@app.route('/api/image', methods=['GET'])
 def get_image():
-    return send_file('/Users/michaelequi/Desktop/Screen Shot 2020-12-26 at 4.34.44 PM.png', mimetype='image/png')
+    annotations.clear()
+    frame = get_frame()
+    cv2.imwrite(tmp_img_location, frame)
+    return send_file(tmp_img_location, mimetype='image/png')
 
 
-@app.route('/addAnnotation', methods=['POST'])
+@app.route('/api/annotation', methods=['POST'])
 def add_annotation():
-    # print(request.method)
-    if request.method == 'POST':
-        # print(request.json)
-        img = cv2.imread('/Users/michaelequi/Desktop/Screen Shot 2021-01-16 at 12.29.10 AM.png')
-        cv2.imwrite('/tmp/annotated_refectory_image.png', img)
-        return send_file('/tmp/annotated_refectory_image.png', mimetype='image/png')
+    # add in the annotation
+    annotations.append(request.get_json())
+    update_annotated_image_file()
+    return send_file(tmp_annotated_img_location, mimetype='image/png')
+
+
+@app.route('/api/annotation/clear', methods=['POST'])
+def clear_annotation():
+    # clear all annotations but keep the same image
+    annotations.clear()
+    update_annotated_image_file()
+    return send_file(tmp_annotated_img_location, mimetype='image/png')
+
+
+@app.route('/api/annotation/undo', methods=['POST'])
+def undo_annotation():
+    # pop the last annotation
+    annotations.pop()
+    update_annotated_image_file()
+    return send_file(tmp_annotated_img_location, mimetype='image/png')
+
+
+@app.route('/api/push', methods=['POST'])
+def push():
+    return jsonify({"success": False})
+    # add in the annotation
+    # return send_file(tmp_annotated_img_location, mimetype='image/png')
