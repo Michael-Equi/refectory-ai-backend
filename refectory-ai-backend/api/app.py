@@ -4,6 +4,7 @@ from firebase_admin import credentials, firestore, storage
 import cv2
 import os
 import math
+import uuid
 
 import models
 
@@ -36,16 +37,15 @@ def get_frame():
 
 def upload_dish_image(index, image):
     # image should be 100x100
-    file = f'image{index}.png'
+    file = f'image{index}_{uuid.uuid4()}.png'
     cv2.imwrite(os.path.join('/tmp', file), image)
     bucket = storage.bucket()
     blob = bucket.blob(file)
-    if blob.exists():
-        blob.delete()
+    # if blob.exists():
+    #     blob.delete()
     blob.upload_from_filename(os.path.join('/tmp', file))
     blob.make_public()
     return blob.public_url
-    # return 'https://storage.googleapis.com/refectory-ai.appspot.com/image0.png'
 
 
 def generate_dishes_from_annotations(annotations):
@@ -57,7 +57,7 @@ def generate_dishes_from_annotations(annotations):
         output = cv2.resize(crop, (100, 100))
         url = upload_dish_image(i, output)
         dish = models.Dish(contents=annotation['content'], image=url, name=annotation['name'],
-                           round=annotation['round'], section=2)
+                           round=annotation['round'], section=1)
         dishes.append(dish)
     return dishes
 
@@ -136,7 +136,7 @@ def clear_dishes(doc_ref):
 @app.route('/api/push', methods=['POST'])
 def push():
     try:
-        doc_ref = db.collection(u'streams').document(u'mock')
+        doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
         clear_dishes(doc_ref)
         for dish in generate_dishes_from_annotations(annotations):
             doc_ref.update({u'dishes': firestore.ArrayUnion([dish.dict()])})
