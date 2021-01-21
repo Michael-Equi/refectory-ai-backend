@@ -4,6 +4,7 @@ from pupil_apriltags import Detector
 import warp_image
 import argparse
 from pathlib import Path
+import sys
 
 from models import Calibration
 
@@ -18,7 +19,6 @@ def get_mouse_cb(clicks):
 
 
 def main(params):
-
     """
     Get the image and compute the necessary warping
     """
@@ -34,26 +34,40 @@ def main(params):
                            refine_edges=1,
                            decode_sharpening=0.25,
                            debug=0)
-    while True:
-        ret, frame = camera.read()
-        results = at_detector.detect(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
-        if not ret:
-            print("failed to grab frame")
-            break
 
-        if len(results) > 0:
-            measurements.append(results[0].corners)
-            if len(measurements) > params.num_samples:
-                m = np.array(measurements)
-                avg = np.average(m, axis=0)
-                frame, homography, homography_x, homography_y = warp_image.warp_image(avg, frame, tag_size=params.tag_size)
-                cv2.imshow('frame', frame)
-                cv2.waitKey(1)
-                response = input("Enter 'y' to confirm calibration: ")
-                if response == 'y':
-                    break
-                else:
-                    measurements.clear()
+    if not params.offline:
+        while True:
+            ret, frame = camera.read()
+            results = at_detector.detect(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+            if not ret:
+                print("failed to grab frame")
+                break
+
+            if len(results) > 0:
+                measurements.append(results[0].corners)
+                if len(measurements) > params.num_samples:
+                    m = np.array(measurements)
+                    avg = np.average(m, axis=0)
+                    if params.save_raw:
+                        np.save(params.corners, avg)
+                        cv2.imwrite(params.frame, frame)
+                        print('Files saved for offline processing. You can now close the program is you plan on '
+                              'doing the rest of the calibration process later')
+                    frame, homography, homography_x, homography_y = warp_image.warp_image(avg, frame,
+                                                                                          tag_size=params.tag_size)
+                    cv2.imshow('frame', frame)
+                    cv2.waitKey(1)
+                    response = input("Enter 'y' to confirm calibration: ")
+                    if response == 'y':
+                        break
+                    else:
+                        measurements.clear()
+    else:
+        avg = np.load(params.corners)
+        frame = cv2.imread(params.frame)
+        frame, homography, homography_x, homography_y = warp_image.warp_image(avg, frame, tag_size=params.tag_size)
+        cv2.imshow('frame', frame)
+        cv2.waitKey(1)
 
     """
     Set ROI
@@ -100,5 +114,11 @@ if __name__ == '__main__':
     parser.add_argument('--tag-size', default=100, help='Size in pixels of the tag after calibration')
     parser.add_argument('--num-samples', default=5, help='Number of samples to take before averaging')
     parser.add_argument('--config-path', default='./config.json', help='Path for the config file to be written to')
+    parser.add_argument('--save-raw', default=False, help='Whether to save frame and corners average for offline calib')
+
+    parser.add_argument('--offline', default=False, help='Whether to perform calibration offline after '
+                                                         'getting the necessary data')
+    parser.add_argument('--frame', default='./calib_frame.png', help='Path calibration frame for offline measurements')
+    parser.add_argument('--corners', default='./corners.npy', help='Path to corners file for offline measurements')
     args = parser.parse_args()
     main(args)
