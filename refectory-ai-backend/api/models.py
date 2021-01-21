@@ -15,9 +15,8 @@ class Stream(BaseModel):
 
 
 class Calibration(BaseModel):
-    section1: List[List[int]]
-    section2: List[List[int]]
-    section3: List[List[int]]
+    roi_top_left: List[int]
+    roi_bottom_right: List[int]
     homography: List[List[float]]
     homography_x: int
     homography_y: int

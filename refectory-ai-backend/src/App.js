@@ -70,6 +70,16 @@ const App = () => {
         .then((data => data.success ? alert('Success') : alert('Failure')))}>
         Push to Database
       </button>
+      <button onClick={() => fetch('/api/section/clear', {
+        method: 'POST',
+        headers: {
+          "content_type":"application/json",
+        },
+        body: JSON.stringify({section: parseInt(selectorRef.current.value)})
+      }).then((res) => res.json())
+        .then((data => data.success ? alert('Success') : alert('Failure')))}>
+        Clear Section
+      </button>
       <button onClick={() => setClicks([])}>Clear clicks</button>
       {
         isRound ?

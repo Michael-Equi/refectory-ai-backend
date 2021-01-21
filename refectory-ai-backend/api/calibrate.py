@@ -8,6 +8,15 @@ from pathlib import Path
 from models import Calibration
 
 
+def get_mouse_cb(clicks):
+    def mouse_cb(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            clicks.append([x, y])
+            print(clicks)
+
+    return mouse_cb
+
+
 def main(params):
 
     """
@@ -47,11 +56,35 @@ def main(params):
                     measurements.clear()
 
     """
+    Set ROI
+    """
+
+    print("Please select the boundaries (top left then bottom right)")
+
+    clicks = []
+    cv2.setMouseCallback('frame', get_mouse_cb(clicks))
+    while True:
+        if len(clicks) == 2:
+            roi_frame = frame.copy()
+            cv2.rectangle(roi_frame, tuple(clicks[0]), tuple(clicks[1]), (255, 255, 0), 2)
+            cv2.imshow('frame', roi_frame)
+            cv2.waitKey(1)
+            response = input("Enter 'y' to confirm calibration: ")
+            if response == 'y':
+                break
+            else:
+                clicks.clear()
+        cv2.waitKey(1)
+
+    """
     Output the calibration
     """
-    calib = Calibration(homography=homography.tolist(),
-                        homography_x=homography_x,
-                        homography_y=homography_y)
+    calib = Calibration(
+        roi_top_left=clicks[0],
+        roi_bottom_right=clicks[1],
+        homography=homography.tolist(),
+        homography_x=homography_x,
+        homography_y=homography_y)
 
     print(calib.json())
     Path(params.config_path).write_text(calib.json())

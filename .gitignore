@@ -160,4 +160,4 @@ yarn-error.log*
 refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json
 
 # ignore calibration files
-config.json
+refectory-ai-backend/api/config.json

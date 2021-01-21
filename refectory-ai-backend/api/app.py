@@ -7,6 +7,7 @@ import math
 import uuid
 
 import models
+import warp_image
 
 app = Flask(__name__)
 
@@ -25,6 +26,7 @@ config = {
 cred = credentials.Certificate('./refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json')
 firebase_admin.initialize_app(cred, config)
 db = firestore.client()
+doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
 
 
 def get_frame():
@@ -61,7 +63,6 @@ def generate_dishes_from_annotations(annotations):
 
 
 def draw_annotations(annotations, image):
-
     for annotation in annotations:
 
         # Figure out the color of the annotation based on the section
@@ -94,12 +95,14 @@ image = None
 annotations = []
 tmp_img_location = '/tmp/refectory_image.png'
 tmp_annotated_img_location = '/tmp/annotated_refectory_image.png'
+calibration = models.Calibration.parse_file('config.json')
 
 
 @app.route('/api/image', methods=['GET'])
 def get_image():
     annotations.clear()
     frame = get_frame()
+    frame = warp_image.warp_with_calibration(frame, calibration)
     cv2.imwrite(tmp_img_location, frame)
     return send_file(tmp_img_location, mimetype='image/png')
 
@@ -134,11 +137,26 @@ def clear_dishes(doc_ref, section_name):
         doc_ref.update({section_name: firestore.ArrayRemove(current_dishes)})
 
 
+@app.route('/api/section/clear', methods=['POST'])
+def clear_section():
+    try:
+        print(request.get_json())
+        section = request.get_json()['section']
+        if section == 1:
+            clear_dishes(doc_ref, 'section1')
+        elif section == 2:
+            clear_dishes(doc_ref, 'section2')
+        elif section == 3:
+            clear_dishes(doc_ref, 'section3')
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, 'exception': e})
+
+
 @app.route('/api/push', methods=['POST'])
 def push():
     sections_cleared = {1: False, 2: False, 3: False}
     try:
-        doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
         for dish in generate_dishes_from_annotations(annotations):
             if dish.section == 1:
                 if not sections_cleared[1]:

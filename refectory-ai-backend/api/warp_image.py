@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import models
 
 
 def warp_image(points, img, tag_size=100):
@@ -55,3 +56,12 @@ def warp_image(points, img, tag_size=100):
                       [0, 0, 1]])
     dst = cv2.warpPerspective(img, np.dot(h_t, h), (int(-min_x + max_x), int(-min_y + max_y)))
     return dst, np.dot(h_t, h), int(-min_x + max_x), int(-min_y + max_y)
+
+
+def warp_with_calibration(img, calibration):
+    img = cv2.warpPerspective(img, np.float32(calibration.homography),
+                              (calibration.homography_x, calibration.homography_y))
+    # Return image with roi
+    img = img[calibration.roi_top_left[1]:calibration.roi_bottom_right[1],
+              calibration.roi_top_left[0]:calibration.roi_bottom_right[0]]
+    return img
