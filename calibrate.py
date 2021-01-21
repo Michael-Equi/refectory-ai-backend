@@ -8,15 +8,6 @@ from pathlib import Path
 from models import Calibration
 
 
-def get_mouse_cb(clicks):
-    def mouse_cb(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            clicks.append([x, y])
-            print(clicks)
-
-    return mouse_cb
-
-
 def main(params):
 
     """
@@ -49,43 +40,16 @@ def main(params):
                 frame, homography, homography_x, homography_y = warp_image.warp_image(avg, frame, tag_size=params.tag_size)
                 cv2.imshow('frame', frame)
                 cv2.waitKey(1)
-                break
+                response = input("Enter 'y' to confirm calibration: ")
+                if response == 'y':
+                    break
+                else:
+                    measurements.clear()
 
     """
-    Set the section boundaries 
+    Output the calibration
     """
-
-    print("Please select the boundaries")
-
-    clicks = []
-    cv2.setMouseCallback('frame', get_mouse_cb(clicks))
-
-    section1, section2, section3 = None, None, None
-    while not section3:
-        if len(clicks) == 4:
-            if not section1:
-                section1 = clicks[:]
-                frame = cv2.polylines(frame, np.int32([section1]), isClosed=True, color=(0, 0, 255),
-                                      thickness=4)
-            elif not section2:
-                section2 = clicks[:]
-                frame = cv2.polylines(frame, np.int32([section2]), isClosed=True, color=(0, 255, 0),
-                                      thickness=4)
-            elif not section3:
-                section3 = clicks[:]
-                frame = cv2.polylines(frame, np.int32([section3]), isClosed=True, color=(255, 0, 0),
-                                      thickness=4)
-            clicks.clear()
-            cv2.imshow('frame', frame)
-        cv2.waitKey(1)
-
-    """
-    Output the calibration    
-    """
-    calib = Calibration(section1=section1,
-                        section2=section2,
-                        section3=section3,
-                        homography=homography.tolist(),
+    calib = Calibration(homography=homography.tolist(),
                         homography_x=homography_x,
                         homography_y=homography_y)
 

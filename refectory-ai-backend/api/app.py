@@ -41,8 +41,6 @@ def upload_dish_image(index, image):
     cv2.imwrite(os.path.join('/tmp', file), image)
     bucket = storage.bucket()
     blob = bucket.blob(file)
-    # if blob.exists():
-    #     blob.delete()
     blob.upload_from_filename(os.path.join('/tmp', file))
     blob.make_public()
     return blob.public_url
@@ -57,20 +55,23 @@ def generate_dishes_from_annotations(annotations):
         output = cv2.resize(crop, (100, 100))
         url = upload_dish_image(i, output)
         dish = models.Dish(contents=annotation['content'], image=url, name=annotation['name'],
-                           round=annotation['round'], section=1)
+                           round=annotation['round'], section=annotation['section'])
         dishes.append(dish)
     return dishes
 
 
 def draw_annotations(annotations, image):
-    section = 1
-    color = (0, 0, 255)
-    if section == 1:
-        color = (0, 255, 0)
-    elif section == 2:
-        color = (255, 0, 0)
 
     for annotation in annotations:
+
+        # Figure out the color of the annotation based on the section
+        color = (0, 0, 255)
+        if annotation['section'] == 1:
+            color = (0, 255, 0)
+        elif annotation['section'] == 2:
+            color = (255, 0, 0)
+
+        # Draw the annotations
         if annotation['round']:
             center = ((annotation['points'][0][0] + annotation['points'][1][0]) / 2,
                       (annotation['points'][0][1] + annotation['points'][1][1]) / 2)
@@ -127,19 +128,33 @@ def undo_annotation():
     return send_file(tmp_annotated_img_location, mimetype='image/png')
 
 
-def clear_dishes(doc_ref):
-    current_dishes = doc_ref.get().to_dict()['dishes']
+def clear_dishes(doc_ref, section_name):
+    current_dishes = doc_ref.get().to_dict()[section_name]
     if len(current_dishes) > 0:
-        doc_ref.update({u'dishes': firestore.ArrayRemove(current_dishes)})
+        doc_ref.update({section_name: firestore.ArrayRemove(current_dishes)})
 
 
 @app.route('/api/push', methods=['POST'])
 def push():
+    sections_cleared = {1: False, 2: False, 3: False}
     try:
         doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
-        clear_dishes(doc_ref)
         for dish in generate_dishes_from_annotations(annotations):
-            doc_ref.update({u'dishes': firestore.ArrayUnion([dish.dict()])})
+            if dish.section == 1:
+                if not sections_cleared[1]:
+                    clear_dishes(doc_ref, 'section1')
+                    sections_cleared[1] = True
+                doc_ref.update({u'section1': firestore.ArrayUnion([dish.dict()])})
+            elif dish.section == 2:
+                if not sections_cleared[2]:
+                    clear_dishes(doc_ref, 'section2')
+                    sections_cleared[2] = True
+                doc_ref.update({u'section2': firestore.ArrayUnion([dish.dict()])})
+            else:
+                if not sections_cleared[3]:
+                    clear_dishes(doc_ref, 'section3')
+                    sections_cleared[3] = True
+                doc_ref.update({u'section3': firestore.ArrayUnion([dish.dict()])})
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, 'exception': e})

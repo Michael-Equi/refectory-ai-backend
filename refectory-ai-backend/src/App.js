@@ -10,6 +10,7 @@ const App = () => {
   const nameRef = useRef();
   const contentRef = useRef();
   const imgRef = useRef();
+  const selectorRef = useRef();
 
   const update_image = async (res) => {
     if (!res.ok) {
@@ -31,6 +32,7 @@ const App = () => {
   }
 
   const sendForm = (e) => {
+    console.log()
     e.preventDefault();
     if(clicks.length !== 2){
       alert('Number of clicks should be 2')
@@ -45,7 +47,8 @@ const App = () => {
           name: nameRef.current.value,
           content: contentRef.current.value,
           points: clicks,
-          round: isRound
+          round: isRound,
+          section: parseInt(selectorRef.current.value),
         })
       }
       fetch('/api/annotation', request).then(update_image);
@@ -95,6 +98,14 @@ const App = () => {
         <label>
           Content:
           <input type="text" ref={contentRef} name="content" />
+        </label>
+        <label>
+          Section:
+          <select name="Section" ref={selectorRef}>
+            <option value="1">Section 1</option>
+            <option value="2">Section 2</option>
+            <option value="3">Section 3</option>
+          </select>
         </label>
         <input type="submit" value="Submit" />
       </form>
