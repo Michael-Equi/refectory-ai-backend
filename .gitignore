@@ -161,3 +161,5 @@ refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json
 
 # ignore calibration files
 refectory-ai-backend/api/config.json
+calib_frame.png
+corners.npy
