@@ -54,7 +54,7 @@ def generate_image(dishes):
 
 class RefectoryAISlack:
     def __init__(self):
-        self.token = "xoxb-1755057314643-1740086766167-cJxvnwSlKz1UwiU0jXvRQDDI"
+        self.token = "xoxb-1755057314643-1740086766167-EgGGxINqhW4xeSulbhDyMTul"
         self.client = WebClient(token=self.token)
 
     def post(self, url):
