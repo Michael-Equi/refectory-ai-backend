@@ -26,7 +26,7 @@ def main(params):
     homography, homography_x, homography_y = None, None, None
 
     measurements = []
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(int(params.camera))
     at_detector = Detector(families='tagStandard41h12',
                            nthreads=1,
                            quad_decimate=1.0,
@@ -111,6 +111,7 @@ def main(params):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calibrate refectory.ai')
+    parser.add_argument('--camera', default=0, help='Which camera feed to get images from')
     parser.add_argument('--tag-size', default=100, help='Size in pixels of the tag after calibration')
     parser.add_argument('--num-samples', default=5, help='Number of samples to take before averaging')
     parser.add_argument('--config-path', default='./config.json', help='Path for the config file to be written to')

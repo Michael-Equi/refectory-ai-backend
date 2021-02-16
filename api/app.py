@@ -5,14 +5,20 @@ import cv2
 import os
 import math
 import uuid
+import json
+from datetime import date
+import time
 
 import models
 import warp_image
+import slackbot
 
 app = Flask(__name__)
 
-cap = cv2.VideoCapture(0)
+""" OpenCV """
+cap = cv2.VideoCapture(1)
 
+""" Firebase """
 config = {
     "apiKey": "AIzaSyC2qvy80zegkDmLkJM18CSiSj_cz21PWZk",
     "authDomain": "refectory-ai.firebaseapp.com",
@@ -25,8 +31,16 @@ config = {
 }
 cred = credentials.Certificate('./refectory-ai-firebase-adminsdk-stydr-1a035f2f33.json')
 firebase_admin.initialize_app(cred, config)
-db = firestore.client()
-doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
+# db = firestore.client()
+# doc_ref = db.collection(u'streams').document(u'EN6JbCUDiSMii9gfQl17')
+
+""" Slack """
+slack_client = slackbot.RefectoryAISlack()
+
+
+"""
+Helper functions
+"""
 
 
 def get_frame():
@@ -35,31 +49,6 @@ def get_frame():
         return frame
     else:
         Exception("Problem getting frame from camera")
-
-
-def upload_dish_image(index, image):
-    # image should be 100x100
-    file = f'image{index}_{uuid.uuid4()}.png'
-    cv2.imwrite(os.path.join('/tmp', file), image)
-    bucket = storage.bucket()
-    blob = bucket.blob(file)
-    blob.upload_from_filename(os.path.join('/tmp', file))
-    blob.make_public()
-    return blob.public_url
-
-
-def generate_dishes_from_annotations(annotations):
-    dishes = []
-    image = cv2.imread(tmp_img_location)
-    for i, annotation in enumerate(annotations):
-        pts = annotation['points']
-        crop = image[pts[0][1]:pts[1][1], pts[0][0]:pts[1][0]]
-        output = cv2.resize(crop, (100, 100))
-        url = upload_dish_image(i, output)
-        dish = models.Dish(contents=annotation['content'], image=url, name=annotation['name'],
-                           round=annotation['round'], section=annotation['section'])
-        dishes.append(dish)
-    return dishes
 
 
 def draw_annotations(annotations, image):
@@ -86,93 +75,109 @@ def draw_annotations(annotations, image):
 
 
 def update_annotated_image_file():
-    unannotated_image = cv2.imread(tmp_img_location)
-    annotated_image = draw_annotations(annotations, unannotated_image)
-    cv2.imwrite(tmp_annotated_img_location, annotated_image)
+    unannotated_image = cv2.imread(TMP_IMG_LOCATION)
+    annotated_image = draw_annotations(g_annotations, unannotated_image)
+    cv2.imwrite(TMP_ANNOTATED_IMG_LOCATION, annotated_image)
 
 
-image = None
-annotations = []
-tmp_img_location = '/tmp/refectory_image.png'
-tmp_annotated_img_location = '/tmp/annotated_refectory_image.png'
-calibration = models.Calibration.parse_file('config.json')
+def upload_image(image):
+    file = f'image{uuid.uuid4()}.png'
+    cv2.imwrite(os.path.join('/tmp', file), image)
+    bucket = storage.bucket()
+    blob = bucket.blob(file)
+    blob.upload_from_filename(os.path.join('/tmp', file))
+    blob.make_public()
+    return blob.public_url
+
+
+def generate_dishes_from_annotations(annotations):
+    dishes = []
+    image = cv2.imread(TMP_IMG_LOCATION)
+    for i, annotation in enumerate(annotations):
+        pts = annotation['points']
+        pt1_0 = min(pts[0][0], pts[1][0])
+        pt2_0 = max(pts[0][0], pts[1][0])
+        pt1_1 = min(pts[0][1], pts[1][1])
+        pt2_1 = max(pts[0][1], pts[1][1])
+        crop = image[pt1_1:pt2_1, pt1_0:pt2_0]
+        output = cv2.resize(crop, (200, 200))
+        dish = models.Dish(contents=annotation['content'], name=annotation['name'], round=annotation['round'],
+                           section=annotation['section'])
+        dishes.append({'meta': dish, 'image': output})
+    return dishes
+
+
+"""
+APP CODE START
+"""
+
+g_annotations = []
+DATA_DIR = os.path.expanduser('~/refectory-data')
+os.makedirs(DATA_DIR, exist_ok=True)
+TMP_IMG_LOCATION = '/tmp/refectory_image.png'
+TMP_ANNOTATED_IMG_LOCATION = '/tmp/annotated_refectory_image.png'
+CALIBRATION = models.Calibration.parse_file('config.json')
 
 
 @app.route('/api/image', methods=['GET'])
 def get_image():
-    annotations.clear()
+    g_annotations.clear()
     frame = get_frame()
-    frame = warp_image.warp_with_calibration(frame, calibration)
-    cv2.imwrite(tmp_img_location, frame)
-    return send_file(tmp_img_location, mimetype='image/png')
+    frame = warp_image.warp_with_calibration(frame, CALIBRATION)
+    cv2.imwrite(TMP_IMG_LOCATION, frame)
+    return send_file(TMP_IMG_LOCATION, mimetype='image/png')
 
 
 @app.route('/api/annotation', methods=['POST'])
 def add_annotation():
     # add in the annotation
-    annotations.append(request.get_json())
+    g_annotations.append(request.get_json())
     update_annotated_image_file()
-    return send_file(tmp_annotated_img_location, mimetype='image/png')
+    return send_file(TMP_ANNOTATED_IMG_LOCATION, mimetype='image/png')
 
 
 @app.route('/api/annotation/clear', methods=['POST'])
 def clear_annotation():
     # clear all annotations but keep the same image
-    annotations.clear()
+    g_annotations.clear()
     update_annotated_image_file()
-    return send_file(tmp_annotated_img_location, mimetype='image/png')
+    return send_file(TMP_ANNOTATED_IMG_LOCATION, mimetype='image/png')
 
 
 @app.route('/api/annotation/undo', methods=['POST'])
 def undo_annotation():
     # pop the last annotation
-    annotations.pop()
+    g_annotations.pop()
     update_annotated_image_file()
-    return send_file(tmp_annotated_img_location, mimetype='image/png')
-
-
-def clear_dishes(doc_ref, section_name):
-    current_dishes = doc_ref.get().to_dict()[section_name]
-    if len(current_dishes) > 0:
-        doc_ref.update({section_name: firestore.ArrayRemove(current_dishes)})
+    return send_file(TMP_ANNOTATED_IMG_LOCATION, mimetype='image/png')
 
 
 @app.route('/api/section/clear', methods=['POST'])
 def clear_section():
-    try:
-        print(request.get_json())
-        section = request.get_json()['section']
-        if section == 1:
-            clear_dishes(doc_ref, 'section1')
-        elif section == 2:
-            clear_dishes(doc_ref, 'section2')
-        elif section == 3:
-            clear_dishes(doc_ref, 'section3')
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"success": False, 'exception': e})
+    pass
 
 
 @app.route('/api/push', methods=['POST'])
 def push():
-    sections_cleared = {1: False, 2: False, 3: False}
     try:
-        for dish in generate_dishes_from_annotations(annotations):
-            if dish.section == 1:
-                if not sections_cleared[1]:
-                    clear_dishes(doc_ref, 'section1')
-                    sections_cleared[1] = True
-                doc_ref.update({u'section1': firestore.ArrayUnion([dish.dict()])})
-            elif dish.section == 2:
-                if not sections_cleared[2]:
-                    clear_dishes(doc_ref, 'section2')
-                    sections_cleared[2] = True
-                doc_ref.update({u'section2': firestore.ArrayUnion([dish.dict()])})
-            else:
-                if not sections_cleared[3]:
-                    clear_dishes(doc_ref, 'section3')
-                    sections_cleared[3] = True
-                doc_ref.update({u'section3': firestore.ArrayUnion([dish.dict()])})
+        # Save image and annotation into a data directory
+        today = date.today()
+        data_name = today.strftime("%b-%d-%Y")
+        data_time = str(int(time.time()))
+        data_path = os.path.join(DATA_DIR, data_name)
+        os.makedirs(data_path, exist_ok=True)
+        with open(os.path.join(data_path, data_name + '_' + data_time + '.json'), 'w') as f:
+            json.dump(g_annotations, f)
+        cv2.imwrite(os.path.join(data_path, data_name + '_' + data_time + '.png'), cv2.imread(TMP_IMG_LOCATION))
+
+        # Send the processed image to slack
+        image = slackbot.generate_image(generate_dishes_from_annotations(g_annotations))
+        url = upload_image(image)
+        slack_client.post(url)
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, 'exception': e})
+        return jsonify({"success": False, 'exception': str(e)})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=3000)

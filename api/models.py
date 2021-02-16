@@ -4,7 +4,6 @@ from typing import List
 
 class Dish(BaseModel):
     contents: str
-    image: str
     name: str
     round: bool
     section: int
