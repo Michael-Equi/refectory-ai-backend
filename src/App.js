@@ -67,7 +67,7 @@ const App = () => {
       <button onClick={() => fetch('/api/annotation/clear', {method: 'POST', cache: "no-store"}).then(update_image)}>Clear</button>
       <button onClick={() => fetch('/api/image', {cache: "no-store"}).then(update_image)}>New Image</button>
       <button onClick={() => fetch('/api/push', {method: 'POST'}).then((res) => res.json())
-        .then((data => data.success ? alert('Success') : alert('Failure')))}>
+        .then((data => data.success ? alert('Success') : alert('Failure: ' + data.exception)))}>
         Push to Database
       </button>
       <button onClick={() => fetch('/api/section/clear', {
