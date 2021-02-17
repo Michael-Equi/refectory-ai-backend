@@ -41,7 +41,7 @@ const App = () => {
         method:"POST",
         cache: "no-cache",
         headers: {
-          "content_type":"application/json",
+          "Content-Type":"application/json",
         },
         body: JSON.stringify({
           name: nameRef.current.value,
@@ -73,7 +73,7 @@ const App = () => {
       <button onClick={() => fetch('/api/section/clear', {
         method: 'POST',
         headers: {
-          "content_type":"application/json",
+          "Content-Type":"application/json",
         },
         body: JSON.stringify({section: parseInt(selectorRef.current.value)})
       }).then((res) => res.json())
